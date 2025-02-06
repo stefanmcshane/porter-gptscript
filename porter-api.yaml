@@ -1,0 +1,597 @@
+openapi: "3.0.0"
+info:
+  version: 1.0.0
+  title: Porter API
+  description: API for interfacing with porter.run
+  contact:
+    name: Porter
+    email: support@porter.run
+    url: https://porter.run
+servers:
+  - url: https://dashboard.internal-tools.porter.run
+  - url: http://localhost:7835
+security:
+  - cookieAuth: [] # defines the usage, but all role scopes should be defined under bearerAuth in the given path
+  - bearerAuth: []
+
+paths:
+  /api/v2/projects/{project_id}/clusters:
+    parameters:
+      - name: project_id
+        in: path
+        description: Project ID to filter clusters by
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: List clusters
+      description: Returns all clusters in the project that the user has access to
+      operationId: list_clusters
+      security:
+        - bearerAuth:
+            - viewer
+      responses:
+        '200':
+          description: List of clusters
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - clusters
+                properties:
+                  clusters:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Cluster'
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v2/projects/{project_id}/enroll-in-porter-cloud:
+    parameters:
+      - name: project_id
+        in: path
+        description: Project ID to enroll in Porter Cloud
+        required: true
+        schema:
+          type: integer
+    post:
+      summary: Enroll in Porter Cloud
+      description: Enrolls a project in Porter Cloud
+      operationId: enroll_in_porter_cloud
+      security:
+        - bearerAuth:
+            - admin
+      responses:
+        '200':
+          description: Project enrolled in Porter Cloud
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - cloud_account_id
+                properties:
+                  cloud_account_id:
+                    type: string
+                    description: The ID of the cloud account that was created
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v2/projects/{project_id}/migrations:
+    parameters:
+      - name: project_id
+        in: path
+        description: project id to filter by
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: List migrations
+      tags:
+        - experimental
+      description: Returns a list of all migrations and their current status.
+      operationId: list_migrations
+      security:
+        - bearerAuth:
+            - developer
+      responses:
+        '200':
+          description: List of migrations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - migrations
+                properties:
+                  migrations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Migration'
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Apply migration
+      tags:
+        - experimental
+      description: Applies a new migration as specified by the provided migration plan.
+        Returns a migration ID for tracking progress.
+      operationId: apply_migration
+      security:
+        - bearerAuth:
+            - developer
+      requestBody:
+        description: Migration plan details
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MigrationPlan'
+      responses:
+        '200':
+          description: Migration job created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - migration_id
+                properties:
+                  migration_id:
+                    type: string
+                    description: Unique identifier of the created migration
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v2/projects/{project_id}/apps:
+    parameters:
+      - name: project_id
+        in: path
+        description: Project ID to filter apps by
+        required: true
+        schema:
+          type: integer
+      - name: cluster_id
+        in: query
+        description: Optional cluster ID to filter apps by
+        required: false
+        schema:
+          type: integer
+    get:
+      summary: List applications
+      description: Returns all applications in the project that the user has access to, optionally filtered by cluster
+      operationId: list_apps
+      security:
+        - bearerAuth:
+            - viewer
+      responses:
+        '200':
+          description: List of applications
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - apps
+                properties:
+                  apps:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/App'
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v2/projects/{project_id}/custom-metrics:
+    parameters:
+      - name: project_id
+        in: path
+        description: Project ID to look up custom metrics in
+        required: true
+        schema:
+          type: integer
+      - name: deployment_target_id
+        in: query
+        description: Deployment target ID to look for custom metrics in
+        required: true
+        schema:
+          type: string
+    get:
+      summary: List custom metrics
+      tags:
+        - experimental
+      description: Returns a list of all custom metrics from customer applications
+      operationId: list_custom_metrics
+      security:
+        - bearerAuth:
+            - viewer
+      responses:
+        '200':
+          description: List of custom metrics from customer applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Metric'
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v2/projects/{project_id}/audit-logs:
+    get:
+      operationId: audit_logs_list_for_project
+      summary: List audit logs for a project
+      security:
+        - bearerAuth:
+            - admin
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: start_date
+          in: query
+          required: false
+          description: Start date for the audit logs in UTC. Defaults to the past 14 days.
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          required: false
+          description: End date for the audit logs in UTC. Defaults to the current date.
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/pagination'
+      responses:
+        '200':
+          description: List of audit logs for the project
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - audit_logs
+                properties:
+                  pagination:
+                    $ref: '#/components/schemas/PaginationResponse'
+                  audit_logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v2/projects/{project_id}/compute-resources:
+    get:
+      tags:
+        - experimental
+      operationId: list_compute_resources
+      summary: List compute resources
+      security:
+        - bearerAuth:
+            - viewer
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          description: Unique identifier of the project
+          schema:
+            type: integer
+        - name: cluster_id
+          in: query
+          required: true
+          description: Unique identifier of the cluster
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of compute resources
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - compute_resources
+                properties:
+                  compute_resources:
+                    type: array
+                    description: List of compute resource breakdowns for each node group
+                    items:
+                      $ref: '#/components/schemas/NodeGroupComputeResources'
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: porter
+  parameters:
+    pagination:
+      name: page
+      in: query
+      description: Page number (1-based)
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+  schemas:
+    PaginationResponse:
+      type: object
+      required:
+        - current_page
+        - has_next_page
+        - total_pages
+      properties:
+        current_page:
+          type: integer
+          description: Current page number (1-based)
+        total_pages:
+          type: integer
+          description: Total number of pages
+        has_next_page:
+          type: boolean
+          description: Whether there are more items after this page
+
+    Cluster:
+      required:
+        - id
+        - name
+        - status
+        - region
+        - cloud_provider
+        - created_at_utc
+      properties:
+        id:
+          type: integer
+          description: Unique identifier of the cluster
+        name:
+          type: string
+          description: Name of the cluster
+        region:
+          type: string
+          description: Region of the cluster
+        status:
+          type: string
+          description: Status of the cluster
+        created_at_utc:
+          type: string
+          format: date-time
+          description: Date and time when the cluster was created
+        cloud_provider:
+          type: string
+          description: Cloud provider of the cluster
+    MigrationPlan:
+      required:
+        - source_cluster_id
+        - destination_cluster_id
+        - apps
+      properties:
+        source_cluster_id:
+          type: integer
+          description: ID of the source cluster
+        destination_cluster_id:
+          type: integer
+          description: ID of the destination cluster if it already exists
+        apps:
+          type: array
+          description: List of applications to migrate
+          items:
+            type: object
+            required:
+              - instance_id
+            properties:
+              instance_id:
+                type: string
+                description: ID of the application instance to migrate
+    Migration:
+      type: object
+      required:
+        - migration_id
+        - migration_plan
+        - status
+        - created_at_utc
+      properties:
+        migration_id:
+          type: string
+          description: Unique identifier of the migration
+        migration_plan:
+          $ref: '#/components/schemas/MigrationPlan'
+        status:
+          type: string
+          enum: [ in_progress, completed, failed, canceled ]
+          description: Current status of the migration
+        created_at_utc:
+          type: string
+          format: date-time
+          description: Timestamp when the migration was created
+        completed_at_utc:
+          type: string
+          format: date-time
+          description: Timestamp when the migration completed (if applicable)
+    App:
+      type: object
+      required:
+        - id
+        - name
+        - cluster_id
+        - deployment_target_id
+        - git_repository
+        - image_repository
+        - created_at_utc
+      properties:
+        id:
+          type: string
+          description: Unique identifier of the application
+        name:
+          type: string
+          description: Name of the application
+        cluster_id:
+          type: integer
+          description: ID of the cluster this application belongs to
+        deployment_target_id:
+          type: string
+          description: ID of the deployment target this application belongs to
+        git_repository:
+          type: string
+          description: Git repository URL for the application
+        image_repository:
+          type: string
+          description: Image repository URL for the application
+        created_at_utc:
+          type: string
+          format: date-time
+          description: Date and time when the application was created
+
+    AuditLog:
+      type: object
+      required:
+        - id
+        - created_at
+        - updated_at
+        - project_id
+        - action
+        - action_metadata
+      properties:
+        id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        project_id:
+          type: integer
+        user_id:
+          type: integer
+          nullable: true
+        user_email:
+          type: string
+          format: email
+          nullable: true
+        api_token_unique_id:
+          type: string
+          nullable: true
+        api_token_name:
+          type: string
+          nullable: true
+        action:
+          type: string
+        action_metadata:
+          type: object
+          additionalProperties: true
+    NodeGroupComputeResources:
+      type: object
+      required:
+        - gpu_enabled
+        - node_group_id
+        - virtual_machine_type
+        - total_cpu_cores
+        - total_ram_mib
+        - allocatable_cpu_cores
+        - allocatable_ram_mib
+        - system_reserved_cpu_cores
+        - system_reserved_ram_mib
+        - user_reserved_cpu_cores
+        - user_reserved_ram_mib
+        - user_reserved_apps
+      properties:
+        gpu_enabled:
+          type: boolean
+          description: Indicates if the node group supports GPU workloads. Only applicable for the default node group (when node_group_id is empty)
+        node_group_id:
+          type: string
+          description: Unique identifier of the node group. An empty value indicates this is the cluster's default node group
+        virtual_machine_type:
+          type: string
+          description: The cloud provider's machine type/size used for nodes in this group
+        total_cpu_cores:
+          type: number
+          description: Total number of CPU cores available in each node of this group
+        total_ram_mib:
+          type: integer
+          description: Total RAM available in each node, measured in MiB
+        allocatable_cpu_cores:
+          type: number
+          description: Maximum CPU cores that can be requested by user workloads, after accounting for system and user reservations
+        allocatable_ram_mib:
+          type: integer
+          description: Maximum RAM that can be requested by user workloads, measured in MiB, after accounting for system and user reservations
+        system_reserved_cpu_cores:
+          type: number
+          description: CPU cores reserved for system components
+        system_reserved_ram_mib:
+          type: integer
+          description: RAM reserved for system components, measured in MiB
+          example: 1024
+        user_reserved_cpu_cores:
+          type: number
+          description: CPU cores reserved for user-managed applications
+        user_reserved_ram_mib:
+          type: integer
+          description: RAM reserved for user-managed applications, measured in MiB
+        user_reserved_apps:
+          type: array
+          items:
+            type: string
+          description: List of user-managed applications that are consuming the user-reserved resources
+    Error:
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_INPUT
+            - INTERNAL_ERROR
+            - PERMISSION_DENIED
+          description: Error code that indicates the type of error that occurred. This is _not_ the HTTP status code.
+        message:
+          type: string
+          description: Error message that can be displayed to the user
+    Metric:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Name of the metric
+
